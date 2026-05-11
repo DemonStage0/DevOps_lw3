@@ -1,11 +1,13 @@
-# DevOps_lw2 - Glass Classification ML Pipeline с PostgreSQL
+# DevOps_lw3 - Glass Classification ML Pipeline с HashiCorp Vault
 
 ## Описание проекта
-Проект реализует классический жизненный цикл разработки ML модели для классификации типов стекла с использованием CI/CD пайплайна. Модель классифицирует стекло по 7 классам на основе 9 химических признаков. Данные хранятся в базе данных PostgreSQL, а сервис модели реализован с использованием FastAPI и SQLAlchemy.
+Проект реализует классический жизненный цикл разработки ML модели для классификации типов стекла с использованием CI/CD пайплайна и хранилища секретов. Модель классифицирует стекло по 7 классам на основе 9 химических признаков. Данные хранятся в базе данных PostgreSQL, секреты подключения защищены HashiCorp Vault, а сервис модели реализован с использованием FastAPI и SQLAlchemy.
+
+**Ключевое отличие от DevOps_lw2:** все секреты (логин, пароль, хост БД) вынесены в HashiCorp Vault и не хранятся в файлах проекта.
 
 ## Структура проекта
 ```
-DevOps_lw2/
+DevOps_lw3/
 ├── CI/
 │   └── Jenkinsfile          # CI пайплайн
 ├── CD/
@@ -16,27 +18,23 @@ DevOps_lw2/
 ├── src/
 │   ├── unit_tests/
 │   │   ├── test_api.py          # Тесты API эндпоинтов
-│   │   ├── test_predict.py      # Тесты предиктора
-│   │   ├── test_preprocess.py   # Тесты предобработки
 │   │   └── test_training.py     # Тесты обучения
 │   ├── app.py               # FastAPI приложение
-│   ├── csv_to_db.py         # Скрипт переноса данных из CSV в PostgreSQL
+│   ├── config.py            # Получение секретов из Vault
+│   ├── csv_to_db.py         # Скрипт переноса данных из CSV в PostgreSQL (в .gitignore)
 │   ├── database.py          # Модели SQLAlchemy и подключение к БД
 │   ├── logger.py            # Модуль логирования
 │   ├── predict.py           # Класс для предсказаний
 │   ├── preprocess.py        # Предобработка данных
 │   └── train.py             # Обучение модели
-├── tests/
-│   ├── test_0.json          # Тестовые данные для функционального тестирования
-│   └── test_1.json          # Тестовые данные для функционального тестирования
-├── .env                     # Переменные окружения для подключения к БД (в .gitignore)
+├── vault/
+│   └── init-vault.sh        # Скрипт инициализации Vault и записи секретов
 ├── .gitignore
 ├── config.ini               # Гиперпараметры модели
-├── docker-compose.yml       # Конфигурация сервисов (БД + приложение)
+├── docker-compose.yml       # Конфигурация сервисов (Vault + БД + приложение)
 ├── Dockerfile               # Сборка Docker образа
 ├── README.md
-├── requirements.txt         # Зависимости проекта
-└── requirements_freeze.txt  # Зафиксированные версии зависимостей
+└── requirements.txt         # Зависимости проекта
 ```
 
 ## Установка и запуск
@@ -48,28 +46,26 @@ DevOps_lw2/
 ### Быстрый запуск (рекомендуется)
 ```bash
 # Клонирование репозитория
-git clone https://github.com/DemonStage0/DevOps_lw2.git
-cd DevOps_lw2
+git clone https://github.com/DemonStage0/DevOps_lw3.git
+cd DevOps_lw3
 
-# Создание .env файла с параметрами подключения к БД
-echo DB_HOST=db > .env
-echo DB_PORT=5432 >> .env
-echo DB_USER=postgres >> .env
-echo DB_PASS=postgres >> .env
-echo DB_NAME=glass_db >> .env
-
-# Запуск всех сервисов (PostgreSQL + инициализация БД + FastAPI)
+# Запуск всех сервисов (Vault + PostgreSQL + инициализация БД + FastAPI)
 docker-compose up -d --build
 ```
 
 ### Порядок запуска сервисов
-1. **PostgreSQL** — контейнер `glass_db` с автоматическим созданием таблиц через `init.sql`
-2. **Инициализация БД** — контейнер `glass_init` переносит данные из `glass.csv` в таблицу `glass`
-3. **FastAPI** — контейнер `devops_lw2-web-1` запускает API на порту 8000 после готовности БД
+1. **HashiCorp Vault** — контейнер `devops_lw3-vault` (dev-режим, порт 8200)
+2. **Vault Init** — контейнер `devops_lw3-vault-init` записывает секреты БД в Vault
+3. **PostgreSQL** — контейнер `glass_db` с автоматическим созданием таблиц через `init.sql`
+4. **Инициализация БД** — контейнер `glass_init` получает секреты из Vault и переносит данные из `glass.csv` в таблицу `glass`
+5. **FastAPI** — контейнер `devops_lw3-web` получает секреты из Vault и запускает API на порту 8000
 
 ### Локальный запуск (для разработки)
 ```bash
+# Требуется запущенный Vault на localhost:8200
 pip install -r requirements.txt
+set VAULT_ADDR=http://localhost:8200
+set VAULT_TOKEN=devops-lw3-root-token
 python -m uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -84,7 +80,7 @@ GET /
 ### Обучение модели
 ```
 GET /train
-Ответ: {"message": "Модель обучена успешно. F1 = 0.7542"}
+Ответ: {"message": "Модель обучена успешно. F1 = 0.9761"}
 Примечание: данные для обучения загружаются из таблицы glass в PostgreSQL
 ```
 
@@ -106,6 +102,38 @@ GET /predict?RI=1.52101&Na=13.64&Mg=4.49&Al=1.1&Si=71.78&K=0.06&Ca=8.75&Ba=0.0&F
 7 - headlamps
 ```
 
+## Хранилище секретов (HashiCorp Vault)
+
+### Конфигурация
+- **Адрес:** http://vault:8200 (внутри Docker сети), http://localhost:8200 (с хоста)
+- **Root Token:** `devops-lw3-root-token` (захардкожен в контейнере Vault)
+- **Режим:** Development (in-memory, данные не сохраняются между перезапусками)
+
+### Сохраняемые секреты
+В Vault по пути `secret/data/db` хранятся:
+```
+DB_HOST=db
+DB_PORT=5432
+DB_USER=postgres
+DB_PASS=postgres
+DB_NAME=glass_db
+```
+
+### Получение секретов в коде
+```python
+from src.config import get_db_url
+database_url = get_db_url()  # автоматически получает секреты из Vault
+```
+
+### Ручная проверка секретов
+```bash
+# Из контейнера
+docker-compose exec vault vault kv get secret/db
+
+# С хоста
+curl -H "X-Vault-Token: devops-lw3-root-token" http://localhost:8200/v1/secret/data/db
+```
+
 ## База данных
 
 ### Структура таблиц
@@ -116,20 +144,19 @@ GET /predict?RI=1.52101&Na=13.64&Mg=4.49&Al=1.1&Si=71.78&K=0.06&Ca=8.75&Ba=0.0&F
 - id, predicted_class, RI, Na, Mg, Al, Si, K, Ca, Ba, Fe, timestamp
 
 ### Подключение
-Параметры подключения задаются в `.env` файле:
-```
-DB_HOST=db
-DB_PORT=5432
-DB_USER=postgres
-DB_PASS=postgres
-DB_NAME=glass_db
-```
+Приложение получает параметры подключения из Vault при старте. Никакие `.env` файлы не используются в production.
 
 ## Тестирование
 
-### Unit-тесты
+### Unit-тесты (внутри контейнера)
 ```bash
-python -m pytest src/unit_tests/ -v
+docker-compose exec web python -m pytest src/unit_tests/ -v
+```
+
+### Unit-тесты (локально)
+```bash
+# Требуется запущенный Vault
+pytest src/ -v
 ```
 
 ### Функциональные тесты API
@@ -144,16 +171,18 @@ curl "http://localhost:8000/predict?RI=1.52101&Na=13.64&Mg=4.49&Al=1.1&Si=71.78&
 ### CI Pipeline (Jenkins)
 - Клонирование репозитория из GitHub
 - Сборка Docker образов для сервисов
-- Запуск контейнеров (PostgreSQL + FastAPI)
+- Запуск контейнеров (Vault + PostgreSQL + FastAPI)
+- Ожидание инициализации Vault
 - Запуск unit-тестов внутри контейнера
 - Функциональное тестирование API эндпоинтов
-- Публикация образа в Docker Hub
+- Публикация образа в Docker Hub (`demonstage/devops_lw3`)
 
 ### CD Pipeline (Jenkins)
 - Загрузка образов из Docker Hub
-- Запуск полного стека (БД + приложение)
+- Запуск полного стека (Vault + БД + приложение)
 - Функциональное тестирование эндпоинтов
 - Проверка корректности предсказаний
+- Автозапуск после успешного CI пайплайна
 
 ## Эксперименты
 Каждый эксперимент сохраняется в `experiments/exp_N/` и содержит:
@@ -162,11 +191,18 @@ curl "http://localhost:8000/predict?RI=1.52101&Na=13.64&Mg=4.49&Al=1.1&Si=71.78&
 - `metrics.yml` — метрики качества (F1, accuracy)
 - `logs.txt` — логи обучения
 
+## Безопасность
+- **Все секреты в Vault** — пароли, хосты, порты не хранятся в коде
+- **`.env` удалён из репозитория** — добавлен в `.gitignore`
+- **Пароль Vault захардкожен** — только для разработки (dev-режим)
+- **Инициализация при старте** — `init-vault.sh` автоматически загружает секреты Vault
+
 ## Технологии
 - **Python 3.12** + scikit-learn (Random Forest Classifier)
 - **FastAPI** + Uvicorn (REST API)
 - **PostgreSQL 15** (хранение данных и результатов)
 - **SQLAlchemy 2.0** + asyncpg (асинхронная работа с БД)
+- **HashiCorp Vault 1.15** (хранилище секретов)
 - **Pydantic Settings** (управление конфигурацией)
 - **Docker** + Docker Compose (контейнеризация)
 - **Jenkins** (CI/CD пайплайны)

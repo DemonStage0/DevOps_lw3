@@ -151,6 +151,5 @@ data/y_test.csv
 
 *.pyc
 .env
-src/csv_to_db.py
 pgdata/
 vault/data/

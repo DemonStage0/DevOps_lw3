@@ -103,6 +103,11 @@ pipeline {
                 bat 'chcp 65001 && cd DevOps_lw3 && docker tag lw3-web:latest demonstage/devops_lw3:latest && docker push demonstage/devops_lw3:latest'
             }
         }
+        stage('Check Vault init logs') {
+            steps {
+                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose logs vault-init'
+    }
+}
     }
 
     post {

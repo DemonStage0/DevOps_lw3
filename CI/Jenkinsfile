@@ -45,6 +45,12 @@ pipeline {
             }
         }
 
+        stage('Check Vault init logs') {
+            steps {
+                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose logs vault-init'
+            }
+        }
+
         stage('Wait for services') {
             steps {
                 bat 'chcp 65001 && ping -n 21 127.0.0.1 > nul'
@@ -100,14 +106,9 @@ pipeline {
 
         stage('Tag and push image') {
             steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker tag lw3-web:latest demonstage/devops_lw3:latest && docker push demonstage/devops_lw3:latest'
+                bat 'chcp 65001 && cd DevOps_lw3 && docker tag devops_lw3-web:latest demonstage/devops_lw3:latest && docker push demonstage/devops_lw3:latest'
             }
         }
-        stage('Check Vault init logs') {
-            steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose logs vault-init'
-    }
-}
     }
 
     post {

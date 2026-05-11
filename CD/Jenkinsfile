@@ -25,21 +25,15 @@ pipeline {
             }
         }
 
-        stage('Checkout repo dir') {
-            steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && dir'
-            }
-        }
-
         stage('Login to DockerHub') {
             steps {
                 bat 'chcp 65001 && docker login -u %DOCKERHUB_CREDS_USR% -p %DOCKERHUB_CREDS_PSW%'
             }
         }
 
-        stage('Build images') {
+        stage('Pull image from DockerHub') {
             steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose build --no-cache'
+                bat 'chcp 65001 && docker pull demonstage/devops_lw3:latest'
             }
         }
 
@@ -52,12 +46,6 @@ pipeline {
         stage('Wait for services') {
             steps {
                 bat 'chcp 65001 && ping -n 21 127.0.0.1 > nul'
-            }
-        }
-
-        stage('Check services status') {
-            steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose ps'
             }
         }
 
@@ -95,18 +83,6 @@ pipeline {
                 bat 'chcp 65001 && curl -s "http://localhost:8000/predict?RI=1.52101&Na=13.64&Mg=4.49&Al=1.1&Si=71.78&K=0.06&Ca=8.75&Ba=0.0&Fe=0.0"'
             }
         }
-
-        stage('Check container logs') {
-            steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker-compose logs --tail 50'
-            }
-        }
-
-        stage('Tag and push image') {
-            steps {
-                bat 'chcp 65001 && cd DevOps_lw3 && docker tag devops_lw3-web:latest demonstage/devops_lw3:latest && docker push demonstage/devops_lw3:latest'
-    }
-}
     }
 
     post {
